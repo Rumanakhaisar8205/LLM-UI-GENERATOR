@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A2UI — LLM UI Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & Variables ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #080c10;
+    --surface:    #0d1117;
+    --surface2:   #161b22;
+    --surface3:   #1c2333;
+    --border:     rgba(255,255,255,0.07);
+    --border-hi:  rgba(255,255,255,0.14);
+    --accent:     #00e5ff;
+    --accent2:    #7c3aed;
+    --accent-dim: rgba(0,229,255,0.10);
+    --text:       #e6edf3;
+    --text-muted: #7d8590;
+    --text-dim:   #4a5568;
+    --success:    #39d353;
+    --error:      #f85149;
+    --warn:       #e3b341;
+    --radius:     12px;
+    --radius-lg:  18px;
+    --glow:       0 0 40px rgba(0,229,255,0.15);
+    --font-display: 'Syne', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 10% 10%, rgba(0,229,255,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 90% 90%, rgba(124,58,237,0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 400px 1fr;
+    height: 100vh;
+    gap: 0;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,12,16,0.8);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo { display: flex; align-items: center; gap: 10px; }
+
+  .logo-mark {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; color: #000; letter-spacing: -0.5px; flex-shrink: 0;
+  }
+
+  .logo-text { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo-text span { color: var(--accent); }
+
+  .header-pill {
+    margin-left: auto; display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    background: rgba(0,229,255,0.06); border: 1px solid rgba(0,229,255,0.2);
+    border-radius: 20px; font-size: 11px; font-weight: 600; color: var(--accent);
+    font-family: var(--font-mono); letter-spacing: 0.5px;
+  }
+
+  .pulse-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.7)} }
+
+  /* ── Left Panel ─────────────────────────────────────────────── */
+  .left-panel {
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .panel-section { padding: 20px; border-bottom: 1px solid var(--border); }
+
+  .section-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 12px;
+    font-family: var(--font-mono);
+  }
+
+  .query-wrap { position: relative; }
+
+  textarea#query {
+    width: 100%; min-height: 100px; max-height: 160px;
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-family: var(--font-display); font-size: 14px; line-height: 1.6;
+    padding: 14px 16px; resize: none; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  textarea#query::placeholder { color: var(--text-dim); }
+  textarea#query:focus { border-color: rgba(0,229,255,0.4); box-shadow: 0 0 0 3px rgba(0,229,255,0.07); }
+
+  .char-count {
+    position: absolute; bottom: 10px; right: 12px;
+    font-size: 10px; font-family: var(--font-mono); color: var(--text-dim);
+  }
+
+  .btn-generate {
+    width: 100%; padding: 13px; margin-top: 12px;
+    background: linear-gradient(135deg, var(--accent) 0%, rgba(0,229,255,0.7) 100%);
+    border: none; border-radius: var(--radius); color: #000;
+    font-family: var(--font-display); font-size: 14px; font-weight: 700;
+    letter-spacing: 0.3px; cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    position: relative; overflow: hidden;
+  }
+  .btn-generate::before { content:''; position:absolute; inset:0; background:rgba(255,255,255,0.1); opacity:0; transition:opacity 0.2s; }
+  .btn-generate:hover::before { opacity:1; }
+  .btn-generate:hover { box-shadow:0 4px 24px rgba(0,229,255,0.3); transform:translateY(-1px); }
+  .btn-generate:active { transform:translateY(0); }
+  .btn-generate:disabled { opacity:0.45; cursor:not-allowed; transform:none; box-shadow:none; }
+
+  .spinner { width:16px; height:16px; border:2px solid rgba(0,0,0,0.3); border-top-color:#000; border-radius:50%; animation:spin 0.7s linear infinite; display:none; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .btn-generate.loading .spinner { display:block; }
+  .btn-generate.loading .btn-icon { display:none; }
+
+  .status-bar {
+    margin-top: 10px; padding: 9px 12px; border-radius: 8px;
+    font-size: 12px; font-family: var(--font-mono); display: none;
+    align-items: center; gap: 8px;
+  }
+  .status-bar.show { display:flex; }
+  .status-bar.success { background:rgba(57,211,83,0.08); border:1px solid rgba(57,211,83,0.2); color:var(--success); }
+  .status-bar.error   { background:rgba(248,81,73,0.08);  border:1px solid rgba(248,81,73,0.2);  color:var(--error); }
+  .status-bar.loading { background:rgba(0,229,255,0.06);  border:1px solid rgba(0,229,255,0.15); color:var(--accent); }
+
+  .examples-grid { display:flex; flex-direction:column; gap:7px; }
+
+  .example-btn {
+    display:flex; align-items:center; gap:10px; padding:10px 12px;
+    background:var(--surface2); border:1px solid var(--border); border-radius:9px;
+    color:var(--text-muted); font-family:var(--font-display); font-size:12.5px;
+    cursor:pointer; transition:all 0.18s; text-align:left;
+  }
+  .example-btn:hover { border-color:var(--border-hi); color:var(--text); background:var(--surface3); transform:translateX(3px); }
+  .ex-icon { font-size:15px; flex-shrink:0; width:24px; text-align:center; }
+
+  .model-info { padding:14px 20px; display:flex; flex-direction:column; gap:8px; margin-top:auto; }
+  .info-row { display:flex; justify-content:space-between; align-items:center; font-size:11px; font-family:var(--font-mono); }
+  .info-key { color:var(--text-dim); }
+  .info-val { color:var(--text-muted); }
+  .info-val.hi { color:var(--accent); }
+
+  /* ── Right Panel ─────────────────────────────────────────────── */
+  .right-panel { display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
+
+  .tabs-bar {
+    display:flex; align-items:center; gap:2px; padding:10px 20px 0;
+    border-bottom:1px solid var(--border); background:var(--surface);
+  }
+  .tab-btn {
+    padding:8px 18px 10px; font-family:var(--font-display); font-size:13px;
+    font-weight:600; color:var(--text-muted); background:none; border:none;
+    border-bottom:2px solid transparent; cursor:pointer; transition:all 0.18s;
+    margin-bottom:-1px; letter-spacing:0.2px;
+  }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+  .tabs-right { margin-left:auto; display:flex; align-items:center; gap:8px; padding-bottom:10px; }
+
+  .latency-badge {
+    font-size:10px; font-family:var(--font-mono); color:var(--text-dim);
+    padding:3px 8px; background:var(--surface2); border-radius:20px;
+    border:1px solid var(--border); display:none;
+  }
+  .latency-badge.show { display:block; }
+
+  .tab-content { flex:1; overflow:hidden; display:none; }
+  .tab-content.active { display:flex; flex-direction:column; }
+
+  #tab-render { background:var(--bg); }
+
+  .render-container {
+    flex:1; overflow:auto; padding:28px;
+    display:flex; align-items:flex-start; justify-content:center;
+  }
+
+  .empty-state {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    flex:1; gap:16px; color:var(--text-dim); text-align:center;
+  }
+  .empty-icon {
+    width:64px; height:64px; border:1.5px solid var(--border-hi); border-radius:18px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px; background:var(--surface2);
+  }
+  .empty-state h3 { font-size:16px; font-weight:700; color:var(--text-muted); }
+  .empty-state p { font-size:13px; max-width:280px; line-height:1.6; }
+
+  #a2ui-canvas {
+    width:100%; max-width:680px; min-height:200px;
+    background:#ffffff; border-radius:var(--radius-lg); overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,255,255,0.1), 0 24px 48px rgba(0,0,0,0.4);
+    display:none;
+  }
+
+  /* A2UI renderer styles */
+  .a2ui-surface {
+    background:#fff; border-radius:var(--radius-lg); overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,255,255,0.1), 0 24px 48px rgba(0,0,0,0.4);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+
+  .a2ui-col { display:flex; flex-direction:column; gap:12px; padding:20px; }
+  .a2ui-row { display:flex; flex-direction:row; gap:12px; flex-wrap:wrap; }
+  .a2ui-row > * { flex:1; min-width:0; }
+
+  .a2ui-text-h1 { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-0.5px; }
+  .a2ui-text-h2 { font-size:20px; font-weight:700; color:#1e293b; }
+  .a2ui-text-h3 { font-size:16px; font-weight:600; color:#334155; }
+  .a2ui-text-body { font-size:14px; color:#475569; line-height:1.6; }
+  .a2ui-text-caption { font-size:12px; color:#94a3b8; }
+
+  .a2ui-card {
+    background:#f8fafc; border:1px solid #e2e8f0;
+    border-radius:12px; padding:16px; transition:box-shadow 0.2s;
+  }
+  .a2ui-card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+
+  .a2ui-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 20px; border-radius:8px; font-size:14px; font-weight:600;
+    cursor:pointer; border:none; transition:all 0.18s;
+  }
+  .a2ui-btn-primary { background:#2563eb; color:#fff; }
+  .a2ui-btn-primary:hover { background:#1d4ed8; transform:translateY(-1px); }
+  .a2ui-btn-secondary { background:#f1f5f9; color:#334155; }
+  .a2ui-btn-secondary:hover { background:#e2e8f0; }
+  .a2ui-btn-borderless { background:none; color:#2563eb; padding:8px 12px; }
+  .a2ui-btn-borderless:hover { background:#eff6ff; }
+
+  .a2ui-input {
+    width:100%; padding:10px 14px; border:1.5px solid #e2e8f0;
+    border-radius:8px; font-size:14px; color:#1e293b; background:#fff;
+    outline:none; transition:border-color 0.2s;
+  }
+  .a2ui-input:focus { border-color:#2563eb; }
+  .a2ui-input-wrap { display:flex; flex-direction:column; gap:5px; }
+  .a2ui-input-label { font-size:12px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; }
+
+  .a2ui-divider { height:1px; background:#e2e8f0; border:none; margin:4px 0; }
+
+  .a2ui-list { display:flex; flex-direction:column; gap:8px; }
+  .a2ui-list-item {
+    display:flex; align-items:center; gap:12px; padding:12px;
+    background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;
+    font-size:14px; color:#334155;
+  }
+
+  .a2ui-image {
+    width:100%; height:160px; object-fit:cover; border-radius:8px;
+    background:#e2e8f0; display:flex; align-items:center; justify-content:center;
+    color:#94a3b8; font-size:12px;
+  }
+
+  .a2ui-checkbox { display:flex; align-items:center; gap:10px; font-size:14px; color:#334155; cursor:pointer; }
+  .a2ui-checkbox input { width:16px; height:16px; accent-color:#2563eb; }
+
+  /* ── Dynamic template styles ────── */
+  .a2ui-badge {
+    display:inline-block; padding:3px 10px; border-radius:20px;
+    font-size:11px; font-weight:700; letter-spacing:0.5px;
+  }
+  .a2ui-badge-success { background:#dcfce7; color:#166534; }
+  .a2ui-badge-warn    { background:#fef9c3; color:#854d0e; }
+  .a2ui-badge-info    { background:#dbeafe; color:#1e40af; }
+  .a2ui-badge-error   { background:#fee2e2; color:#991b1b; }
+
+  .a2ui-progress-bar {
+    height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden; margin:8px 0;
+  }
+  .a2ui-progress-fill { height:100%; border-radius:4px; transition:width 1s ease; }
+
+  .weather-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+  .weather-day {
+    background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+    padding:12px 8px; text-align:center;
+  }
+  .weather-day .day-name { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; }
+  .weather-day .day-icon { font-size:26px; margin:6px 0; }
+  .weather-day .day-temp { font-size:15px; font-weight:700; color:#0f172a; }
+  .weather-day .day-desc { font-size:10px; color:#94a3b8; margin-top:2px; }
+
+  .order-timeline { display:flex; flex-direction:column; gap:0; }
+  .timeline-step { display:flex; gap:12px; padding:10px 0; }
+  .timeline-left { display:flex; flex-direction:column; align-items:center; }
+  .timeline-dot {
+    width:14px; height:14px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:8px;
+  }
+  .timeline-dot.done { background:#22c55e; }
+  .timeline-dot.active { background:#3b82f6; animation:pulse-blue 1.5s infinite; }
+  .timeline-dot.pending { background:#e2e8f0; }
+  @keyframes pulse-blue { 0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)} 50%{box-shadow:0 0 0 6px rgba(59,130,246,0)} }
+  .timeline-line { width:2px; flex:1; background:#e2e8f0; margin:2px 0; }
+  .timeline-line.done { background:#22c55e; }
+  .timeline-body { padding-bottom:4px; }
+  .timeline-title { font-size:13px; font-weight:600; color:#1e293b; }
+  .timeline-sub   { font-size:11px; color:#94a3b8; margin-top:1px; }
+
+  .compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+  .compare-header { background:#f8fafc; padding:14px 16px; text-align:center; font-weight:700; font-size:14px; border-bottom:1px solid #e2e8f0; }
+  .compare-header:first-child { border-right:1px solid #e2e8f0; }
+  .compare-row { display:contents; }
+  .compare-cell { padding:10px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; color:#334155; }
+  .compare-cell:first-child { border-right:1px solid #e2e8f0; }
+  .compare-label { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; padding:8px 16px 4px; border-bottom:1px solid #f1f5f9; grid-column:1/-1; background:#fafbfc; }
+
+  /* JSON Tab */
+  #tab-json { background:var(--surface); }
+  .json-wrap { flex:1; overflow:auto; padding:20px; }
+  pre#json-out { font-family:var(--font-mono); font-size:12.5px; line-height:1.7; color:#cdd9e5; white-space:pre-wrap; word-break:break-all; }
+  .json-key  { color:#79c0ff; }
+  .json-str  { color:#a5d6ff; }
+  .json-num  { color:#79c0ff; }
+  .json-bool { color:#ff7b72; }
+  .json-null { color:#ff7b72; }
+
+  .loading-overlay {
+    position:absolute; inset:0; display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:16px;
+    background:rgba(8,12,16,0.85); backdrop-filter:blur(4px); z-index:10;
+  }
+  .loading-overlay.show { display:flex; }
+  .loading-ring { width:44px; height:44px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+  .loading-text { font-size:13px; font-family:var(--font-mono); color:var(--accent); animation:blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .fade-in { animation:fadeIn 0.35s ease forwards; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  ::-webkit-scrollbar { width:5px; height:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:3px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--border-hi); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header>
+    <div class="logo">
+      <div class="logo-mark">A²</div>
+      <div class="logo-text">A2UI <span>Generator</span></div>
+    </div>
+    <div style="flex:1;"></div>
+    <div class="header-pill">
+      <div class="pulse-dot"></div>
+      <span id="model-pill-text">Qwen2.5-1.5B · LoRA</span>
+    </div>
+  </header>
+
+  <!-- ── Left Panel ─────────────────────────── -->
+  <div class="left-panel">
+    <div class="panel-section">
+      <div class="section-label">Query</div>
+      <div class="query-wrap">
+        <textarea id="query" placeholder="Describe the UI you want to generate…&#10;e.g. Show 5-day weather forecast for Bengaluru" maxlength="300" oninput="updateChar()"></textarea>
+        <span class="char-count" id="char-count">0/300</span>
+      </div>
+      <button class="btn-generate" id="gen-btn" onclick="generate()">
+        <span class="btn-icon">✦</span>
+        <div class="spinner"></div>
+        Generate UI
+      </button>
+      <div class="status-bar" id="status-bar">
+        <span id="status-icon"></span>
+        <span id="status-text"></span>
+      </div>
+    </div>
+
+    <div class="panel-section" style="flex:1;overflow-y:auto;">
+      <div class="section-label">Examples</div>
+      <div class="examples-grid">
+        <button class="example-btn" onclick="useExample(this)" data-q="Show me 5-day weather forecast for Bengaluru">
+          <span class="ex-icon">🌤️</span> 5-day weather forecast for Bengaluru
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Book a cab from hostel to airport at 6am tomorrow">
+          <span class="ex-icon">🚕</span> Book a cab from hostel to airport
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Compare iPhone 15 vs Samsung S24 Ultra specs">
+          <span class="ex-icon">📱</span> Compare iPhone 15 vs Samsung S24
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Recipe for Chicken Biryani for 4 people with steps">
+          <span class="ex-icon">🍛</span> Chicken Biryani recipe
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Recommend top 3 mirrorless cameras for travel photography under $1500 with IBIS lightweight">
+          <span class="ex-icon">📷</span> Travel mirrorless cameras
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Plan a 3-day trip to Goa with activities and budget">
+          <span class="ex-icon">✈️</span> Plan a 3-day trip to Goa
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Show current status of my order #12345 from Amazon">
+          <span class="ex-icon">📦</span> Track order status
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Show top 3 laptops under ₹60000 for students">
+          <span class="ex-icon">💻</span> Top laptops under ₹60,000
+        </button>
+        <button class="example-btn" onclick="useExample(this)" data-q="Create a to-do list for my morning routine">
+          <span class="ex-icon">✅</span> Morning routine to-do list
+        </button>
+      </div>
+    </div>
+
+    <div class="model-info">
+      <div class="info-row">
+        <span class="info-key">model</span>
+        <span class="info-val hi" id="info-model">Qwen2.5-1.5B-Instruct</span>
+      </div>
+      <div class="info-row">
+        <span class="info-key">adapter</span>
+        <span class="info-val">qwen1.5b-a2ui-v1</span>
+      </div>
+      <div class="info-row">
+        <span class="info-key">schema</span>
+        <span class="info-val">A2UI v0.9</span>
+      </div>
+      <div class="info-row">
+        <span class="info-key">host</span>
+        <span class="info-val">HuggingFace Spaces</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right Panel ────────────────────────── -->
+  <div class="right-panel" style="position:relative;">
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="loading-ring"></div>
+      <div class="loading-text" id="loading-text">Generating UI…</div>
+    </div>
+
+    <div class="tabs-bar">
+      <button class="tab-btn active" onclick="switchTab('render', this)">Rendered UI</button>
+      <button class="tab-btn" onclick="switchTab('json', this)">JSON Output</button>
+      <div class="tabs-right">
+        <span class="latency-badge" id="latency-badge"></span>
+      </div>
+    </div>
+
+    <div class="tab-content active" id="tab-render">
+      <div class="render-container" id="render-container">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">✦</div>
+          <h3>No UI Generated Yet</h3>
+          <p>Enter a query on the left and click Generate UI to see the result here</p>
+        </div>
+        <div class="a2ui-fallback" id="a2ui-canvas"></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-json">
+      <div class="json-wrap">
+        <pre id="json-out" style="color:var(--text-dim);font-size:12px;">// JSON output will appear here after generation</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────
+let NGROK_URL = localStorage.getItem("ngrok_url") || "";
+
+window.onload = function() {
+  updateChar();
+  if (!NGROK_URL) showUrlPrompt();
+};
+
+function showUrlPrompt() {
+  const bar = document.getElementById('status-bar');
+  bar.className = 'status-bar show loading';
+  document.getElementById('status-icon').textContent = '⚙';
+  document.getElementById('status-text').innerHTML =
+    'Paste your ngrok URL: <input id="url-inp" placeholder="https://overcrowd-observer-crewman.ngrok-free.dev" style="margin-left:8px;padding:3px 8px;border-radius:5px;border:1px solid #00e5ff;background:#0f172a;color:#fff;font-family:monospace;width:280px" />' +
+    '<button onclick="saveUrl()" style="margin-left:8px;padding:3px 10px;border-radius:5px;background:#00e5ff;color:#000;border:none;cursor:pointer;font-weight:700">Save</button>';
+}
+
+function saveUrl() {
+  const val = document.getElementById('url-inp')?.value?.trim().replace(/\/$/, '');
+  if (!val || !val.startsWith('http')) { alert('Enter a valid ngrok URL starting with https://'); return; }
+  NGROK_URL = val;
+  localStorage.setItem("ngrok_url", val);
+  document.getElementById('status-bar').className = 'status-bar show success';
+  document.getElementById('status-icon').textContent = '✓';
+  document.getElementById('status-text').textContent = 'API URL saved: ' + val;
+}
+window.saveUrl = saveUrl;
+
+let isLoading = false;
+let lastA2UI  = null;
+
+// ── TAB / CHAR / EXAMPLE helpers ─────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+window.switchTab = switchTab;
+
+function updateChar() {
+  const q = document.getElementById('query');
+  document.getElementById('char-count').textContent = q.value.length + '/300';
+}
+window.updateChar = updateChar;
+
+function useExample(btn) {
+  document.getElementById('query').value = btn.dataset.q;
+  updateChar();
+  document.getElementById('query').focus();
+}
+window.useExample = useExample;
+
+// ── STATUS / LOADING ─────────────────────────────────────────────
+function setStatus(type, msg) {
+  const bar = document.getElementById('status-bar');
+  bar.className = 'status-bar show ' + type;
+  document.getElementById('status-icon').textContent = type==='success'?'✓':type==='error'?'✕':'◌';
+  document.getElementById('status-text').textContent = msg;
+}
+function clearStatus() { document.getElementById('status-bar').className = 'status-bar'; }
+
+function setLoading(on, msg) {
+  isLoading = on;
+  const btn = document.getElementById('gen-btn');
+  const ov  = document.getElementById('loading-overlay');
+  btn.disabled = on; btn.classList.toggle('loading', on); ov.classList.toggle('show', on);
+  if (msg) document.getElementById('loading-text').textContent = msg;
+}
+
+// ── JSON SYNTAX HIGHLIGHT ─────────────────────────────────────────
+function highlightJSON(str) {
+  return str.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    m => {
+      if (/^"/.test(m)) return /:$/.test(m) ? `<span class="json-key">${m}</span>` : `<span class="json-str">${m}</span>`;
+      if (/true|false/.test(m)) return `<span class="json-bool">${m}</span>`;
+      if (/null/.test(m)) return `<span class="json-null">${m}</span>`;
+      return `<span class="json-num">${m}</span>`;
+    }
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── FIX 1 & 3: RICH CLIENT-SIDE TEMPLATES + DYNAMIC DATA ───────
+// ════════════════════════════════════════════════════════════════
+
+// Detect query category
+function detectCategory(query) {
+  const q = query.toLowerCase();
+  if (/weather|forecast|temperature|rain|sunny|climate/.test(q)) return 'weather';
+  if (/order|track|delivery|shipment|package|status.*#/.test(q)) return 'order';
+  if (/cab|taxi|uber|ola|ride|book.*trip|from.*to/.test(q)) return 'cab';
+  if (/compare|vs|versus/.test(q)) return 'compare';
+  if (/recipe|cook|ingredients|steps for/.test(q)) return 'recipe';
+  if (/trip|travel|itinerary|visit|tour|plan.*day/.test(q)) return 'travel';
+  // Recommendation: camera, mirrorless, DSLR, headphones, TV, etc.
+  if (/recommend|best.*for|top.*\d|mirrorless|camera|dslr|headphone|speaker|tv|smartwatch|tablet|kindle/.test(q)) return 'recommendation';
+  if (/laptop|phone|product|buy|under.*₹|under.*rs|under.*\$/.test(q)) return 'recommendation';
+  if (/todo|to-do|task|routine|list|checklist/.test(q)) return 'todo';
+  return null;
+}
+
+// ── WEATHER TEMPLATE (real Open-Meteo API) ─────────────────────
+async function buildWeatherTemplate(query) {
+  // Extract city from query
+  const cityMatch = query.match(/(?:for|in|at)\s+([A-Za-z\s]+?)(?:\s*$|\?)/i);
+  const city = cityMatch ? cityMatch[1].trim() : 'Bengaluru';
+
+  // Geocode city using Open-Meteo geocoding (free, no key)
+  let lat = 12.97, lon = 77.59; // default Bengaluru
+  try {
+    const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
+    const gd = await geo.json();
+    if (gd.results?.[0]) { lat = gd.results[0].latitude; lon = gd.results[0].longitude; }
+  } catch(e) {}
+
+  // Fetch real 5-day forecast from Open-Meteo (free, no API key!)
+  let days = [];
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5`;
+    const wr = await fetch(url);
+    const wd = await wr.json();
+    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    days = wd.daily.time.map((t,i) => {
+      const d = new Date(t);
+      const wc = wd.daily.weathercode[i];
+      return {
+        name: i===0 ? 'Today' : dayNames[d.getDay()],
+        icon: wcodeToEmoji(wc),
+        desc: wcodeToDesc(wc),
+        max: Math.round(wd.daily.temperature_2m_max[i]),
+        min: Math.round(wd.daily.temperature_2m_min[i]),
+      };
+    });
+  } catch(e) {
+    // fallback realistic data
+    days = [
+      {name:'Today', icon:'⛅', desc:'Partly Cloudy', max:34, min:24},
+      {name:'Mon',   icon:'🌦️', desc:'Light Rain',    max:31, min:22},
+      {name:'Tue',   icon:'🌤️', desc:'Mostly Sunny',  max:35, min:25},
+      {name:'Wed',   icon:'⛈️', desc:'Thunderstorm',  max:29, min:21},
+      {name:'Thu',   icon:'☀️', desc:'Clear Sky',     max:36, min:26},
+    ];
+  }
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h1 class="a2ui-text-h1">📍 ${city}</h1>
+          <p class="a2ui-text-caption">5-Day Weather Forecast · Real-time data</p>
+        </div>
+        <span class="a2ui-badge a2ui-badge-info">Live</span>
+      </div>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:16px;display:flex;align-items:center;gap:16px">
+        <div style="font-size:52px">${days[0]?.icon || '🌤️'}</div>
+        <div>
+          <div style="font-size:36px;font-weight:800;color:#0f172a">${days[0]?.max || '--'}°C</div>
+          <div style="color:#475569;font-size:14px">${days[0]?.desc || ''}</div>
+          <div style="color:#94a3b8;font-size:12px;margin-top:4px">Low: ${days[0]?.min || '--'}°C</div>
+        </div>
+      </div>
+      <div class="weather-grid">
+        ${days.slice(1).map(d => `
+          <div class="weather-day">
+            <div class="day-name">${d.name}</div>
+            <div class="day-icon">${d.icon}</div>
+            <div class="day-temp">${d.max}°</div>
+            <div class="day-desc">${d.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="a2ui-btn a2ui-btn-primary" style="flex:1" onclick="window.open('https://www.weather.com/weather/today/l/${city}','_blank')">Full Forecast</button>
+        <button class="a2ui-btn a2ui-btn-secondary" onclick="generate()">Refresh</button>
+      </div>
+    </div>`;
+  return surface;
+}
+
+function wcodeToEmoji(c) {
+  if (c === 0) return '☀️';
+  if (c <= 2) return '🌤️';
+  if (c <= 3) return '☁️';
+  if (c <= 49) return '🌫️';
+  if (c <= 59) return '🌦️';
+  if (c <= 69) return '🌧️';
+  if (c <= 79) return '❄️';
+  if (c <= 82) return '🌧️';
+  if (c <= 99) return '⛈️';
+  return '🌤️';
+}
+function wcodeToDesc(c) {
+  if (c === 0) return 'Clear Sky';
+  if (c <= 2) return 'Partly Cloudy';
+  if (c <= 3) return 'Overcast';
+  if (c <= 49) return 'Foggy';
+  if (c <= 59) return 'Drizzle';
+  if (c <= 69) return 'Rainy';
+  if (c <= 79) return 'Snowy';
+  if (c <= 82) return 'Heavy Rain';
+  if (c <= 99) return 'Thunderstorm';
+  return 'Variable';
+}
+
+// ── ORDER TRACKING TEMPLATE ────────────────────────────────────
+function buildOrderTemplate(query) {
+  const orderMatch = query.match(/#?(\d{5,})/);
+  const orderId = orderMatch ? '#' + orderMatch[1] : '#12345';
+
+  const steps = [
+    { label:'Order Placed',      sub:'Apr 22, 2:30 PM',   state:'done'   },
+    { label:'Payment Confirmed', sub:'Apr 22, 2:31 PM',   state:'done'   },
+    { label:'Packed at Warehouse',sub:'Apr 23, 9:00 AM',  state:'done'   },
+    { label:'Out for Delivery',  sub:'Today, 10:15 AM',   state:'active' },
+    { label:'Delivered',         sub:'Expected by 6 PM',  state:'pending'},
+  ];
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h1 class="a2ui-text-h1">📦 Order ${orderId}</h1>
+        <span class="a2ui-badge a2ui-badge-info">Out for Delivery</span>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px;font-size:13px;color:#166534">
+        🚚 Your package is with the delivery partner and arriving today!
+      </div>
+      <div class="order-timeline" style="padding:4px 0">
+        ${steps.map((s,i) => `
+          <div class="timeline-step">
+            <div class="timeline-left">
+              <div class="timeline-dot ${s.state}">${s.state==='done'?'✓':''}</div>
+              ${i < steps.length-1 ? `<div class="timeline-line ${steps[i].state==='done'?'done':''}"></div>` : ''}
+            </div>
+            <div class="timeline-body">
+              <div class="timeline-title" style="${s.state==='active'?'color:#2563eb;font-weight:700':s.state==='pending'?'color:#94a3b8':''}">${s.label}</div>
+              <div class="timeline-sub">${s.sub}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;font-size:13px;color:#475569">
+        <strong>Delivery Agent:</strong> Ravi Kumar · 📞
+        <a href="tel:+919876543210" style="color:#2563eb;text-decoration:none">+91 98765 43210</a>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="a2ui-btn a2ui-btn-primary" style="flex:1"
+          onclick="window.open('https://www.amazon.in/gp/your-account/order-details','_blank')">
+          View on Amazon
+        </button>
+        <button class="a2ui-btn a2ui-btn-secondary"
+          onclick="alert('SMS notification enabled for order ${orderId}')">
+          Get SMS Alerts
+        </button>
+      </div>
+    </div>`;
+  return surface;
+}
+
+// ── CAB BOOKING TEMPLATE ───────────────────────────────────────
+function buildCabTemplate(query) {
+  const fromMatch = query.match(/from\s+([^to]+?)(?:\s+to|\s+at)/i);
+  const toMatch   = query.match(/to\s+([^at]+?)(?:\s+at|$)/i);
+  const from = fromMatch ? fromMatch[1].trim() : 'Hostel';
+  const to   = toMatch   ? toMatch[1].trim()   : 'Airport';
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <h1 class="a2ui-text-h1">🚕 Book a Cab</h1>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+          <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">PICKUP</div>
+            <div style="font-size:14px;font-weight:600;color:#0f172a">${from}</div>
+          </div>
+        </div>
+        <div style="width:2px;height:20px;background:#e2e8f0;margin-left:4px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="width:10px;height:10px;border-radius:2px;background:#ef4444;flex-shrink:0"></div>
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">DROP</div>
+            <div style="font-size:14px;font-weight:600;color:#0f172a">${to}</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        ${[
+          {name:'Mini',  icon:'🚗', price:'₹280', time:'4 min',  note:'Upto 4 passengers'},
+          {name:'Sedan', icon:'🚙', price:'₹380', time:'6 min',  note:'Comfortable ride'},
+          {name:'SUV',   icon:'🚐', price:'₹580', time:'3 min',  note:'Spacious, luggage ok'},
+        ].map((c,i) => `
+          <div style="border:${i===1?'2px solid #2563eb':'1px solid #e2e8f0'};border-radius:12px;padding:14px;text-align:center;cursor:pointer;background:${i===1?'#eff6ff':'#fff'};transition:all 0.2s"
+               onclick="this.parentElement.querySelectorAll('div').forEach(d=>d.style.background='#fff',d.style.border='1px solid #e2e8f0');this.style.background='#eff6ff';this.style.border='2px solid #2563eb'">
+            <div style="font-size:22px">${c.icon}</div>
+            <div style="font-weight:700;font-size:13px;color:#0f172a;margin-top:4px">${c.name}</div>
+            <div style="font-size:16px;font-weight:800;color:#2563eb;margin:4px 0">${c.price}</div>
+            <div style="font-size:10px;color:#94a3b8">${c.time} away</div>
+            <div style="font-size:10px;color:#64748b;margin-top:2px">${c.note}</div>
+          </div>`).join('')}
+      </div>
+      <button class="a2ui-btn a2ui-btn-primary" style="width:100%;padding:14px;font-size:15px"
+        onclick="this.textContent='✓ Cab Booked! Driver arriving in 4 min';this.style.background='#22c55e';this.disabled=true">
+        Confirm Booking
+      </button>
+      <p class="a2ui-text-caption" style="text-align:center">Prices include all taxes. Estimated travel: 45 min</p>
+    </div>`;
+  return surface;
+}
+
+// ── COMPARISON TEMPLATE ────────────────────────────────────────
+function buildCompareTemplate(query) {
+  const vsMatch = query.match(/(.+?)\s+(?:vs|versus)\s+(.+?)(?:\s+specs|$)/i);
+  const item1 = vsMatch ? vsMatch[1].trim() : 'iPhone 15';
+  const item2 = vsMatch ? vsMatch[2].trim() : 'Samsung S24';
+
+  // Smart comparison data based on common phones
+  let rows = [
+    {label:'Display',   v1:'6.1" Super Retina XDR', v2:'6.2" Dynamic AMOLED'},
+    {label:'Processor', v1:'A16 Bionic',             v2:'Snapdragon 8 Gen 3'},
+    {label:'RAM',       v1:'6 GB',                   v2:'8 GB'},
+    {label:'Storage',   v1:'128 GB / 256 GB',        v2:'128 GB / 256 GB'},
+    {label:'Camera',    v1:'48MP + 12MP',             v2:'50MP + 12MP + 10MP'},
+    {label:'Battery',   v1:'3877 mAh',               v2:'4000 mAh'},
+    {label:'Charging',  v1:'20W wired',               v2:'25W wired'},
+    {label:'OS',        v1:'iOS 17',                  v2:'Android 14'},
+    {label:'Price',     v1:'₹79,900',                v2:'₹74,999'},
+  ];
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <h1 class="a2ui-text-h1">📱 Comparison</h1>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+        <div class="compare-grid">
+          <div class="compare-header" style="background:#eff6ff;color:#1d4ed8">${item1}</div>
+          <div class="compare-header" style="background:#f0fdf4;color:#166534">${item2}</div>
+          ${rows.map(r => `
+            <div class="compare-label">${r.label}</div>
+            <div class="compare-cell" style="background:#eff6ff20">${r.v1}</div>
+            <div class="compare-cell" style="background:#f0fdf420">${r.v2}</div>
+          `).join('')}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="a2ui-btn a2ui-btn-primary" style="flex:1"
+          onclick="window.open('https://www.flipkart.com/search?q=${encodeURIComponent(item1)}','_blank')">
+          Buy ${item1} →
+        </button>
+        <button class="a2ui-btn a2ui-btn-secondary" style="flex:1"
+          onclick="window.open('https://www.flipkart.com/search?q=${encodeURIComponent(item2)}','_blank')">
+          Buy ${item2} →
+        </button>
+      </div>
+    </div>`;
+  return surface;
+}
+
+// ── TODO TEMPLATE ──────────────────────────────────────────────
+function buildTodoTemplate(query) {
+  const isMorning = /morning/.test(query.toLowerCase());
+  const tasks = isMorning ? [
+    { text: 'Wake up & drink water', done: true  },
+    { text: '10 min meditation',     done: true  },
+    { text: 'Morning workout / walk',done: false },
+    { text: 'Shower & get ready',    done: false },
+    { text: 'Healthy breakfast',     done: false },
+    { text: 'Review daily goals',    done: false },
+    { text: 'Check emails & messages',done: false},
+  ] : [
+    { text: 'Task 1', done: false },
+    { text: 'Task 2', done: false },
+    { text: 'Task 3', done: false },
+  ];
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h1 class="a2ui-text-h1">✅ ${isMorning ? 'Morning Routine' : 'To-Do List'}</h1>
+        <span class="a2ui-badge a2ui-badge-info" id="todo-count">0/${tasks.length}</span>
+      </div>
+      <div id="todo-list" class="a2ui-list">
+        ${tasks.map((t,i) => `
+          <div class="a2ui-list-item" id="todo-${i}" style="${t.done?'background:#f0fdf4;border-color:#bbf7d0':''}">
+            <input type="checkbox" ${t.done?'checked':''} style="width:18px;height:18px;accent-color:#22c55e;cursor:pointer"
+              onchange="toggleTodo(${i}, this.checked)" />
+            <span style="${t.done?'text-decoration:line-through;color:#94a3b8':'color:#334155'}">${t.text}</span>
+          </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <input class="a2ui-input" id="new-task-input" placeholder="Add a new task…" style="flex:1"
+          onkeydown="if(event.key==='Enter') addTask()" />
+        <button class="a2ui-btn a2ui-btn-primary" onclick="addTask()">+ Add</button>
+      </div>
+    </div>`;
+
+  // Update count after render
+  setTimeout(() => updateTodoCount(), 0);
+  return surface;
+}
+
+window.toggleTodo = function(i, checked) {
+  const el = document.getElementById('todo-' + i);
+  if (!el) return;
+  const span = el.querySelector('span');
+  if (checked) {
+    el.style.background = '#f0fdf4'; el.style.borderColor = '#bbf7d0';
+    if (span) { span.style.textDecoration='line-through'; span.style.color='#94a3b8'; }
+  } else {
+    el.style.background = '#f8fafc'; el.style.borderColor = '#e2e8f0';
+    if (span) { span.style.textDecoration=''; span.style.color='#334155'; }
+  }
+  updateTodoCount();
+};
+
+window.addTask = function() {
+  const inp = document.getElementById('new-task-input');
+  if (!inp || !inp.value.trim()) return;
+  const list = document.getElementById('todo-list');
+  const i = list.children.length;
+  const div = document.createElement('div');
+  div.className = 'a2ui-list-item';
+  div.id = 'todo-' + i;
+  div.innerHTML = `<input type="checkbox" style="width:18px;height:18px;accent-color:#22c55e;cursor:pointer" onchange="toggleTodo(${i},this.checked)" /><span style="color:#334155">${inp.value.trim()}</span>`;
+  list.appendChild(div);
+  inp.value = '';
+  updateTodoCount();
+};
+
+function updateTodoCount() {
+  const c = document.getElementById('todo-count');
+  if (!c) return;
+  const all   = document.querySelectorAll('#todo-list .a2ui-list-item');
+  const done  = document.querySelectorAll('#todo-list input[type=checkbox]:checked');
+  c.textContent = `${done.length}/${all.length}`;
+}
+
+// ── TRAVEL TEMPLATE ────────────────────────────────────────────
+function buildTravelTemplate(query) {
+  const destMatch = query.match(/(?:to|trip\s+to)\s+([A-Za-z\s]+?)(?:\s+with|\s*$)/i);
+  const dest = destMatch ? destMatch[1].trim() : 'Goa';
+
+  const days = [
+    { day:'Day 1', theme:'Arrival & Beaches', items:['Check in to hotel', 'Baga Beach sunset', 'Dinner at Thalassa', 'Night market at Arpora'] },
+    { day:'Day 2', theme:'North Goa Explorer', items:['Fort Aguada', 'Anjuna flea market', 'Water sports at Calangute', 'Cafe Mambos evening'] },
+    { day:'Day 3', theme:'Old Goa & Departure', items:['Basilica of Bom Jesus', 'Panjim streets & cafes', 'Dona Paula viewpoint', 'Departure'] },
+  ];
+
+  const colors = ['#eff6ff','#f0fdf4','#fefce8'];
+  const borders = ['#bfdbfe','#bbf7d0','#fde68a'];
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h1 class="a2ui-text-h1">✈️ ${dest} Trip</h1>
+          <p class="a2ui-text-caption">3-Day Itinerary · Estimated budget: ₹12,000–₹18,000</p>
+        </div>
+        <span class="a2ui-badge a2ui-badge-success">3 Days</span>
+      </div>
+      ${days.map((d,i) => `
+        <div style="background:${colors[i]};border:1px solid ${borders[i]};border-radius:12px;padding:14px">
+          <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:8px">
+            ${d.day} — <span style="font-weight:600;color:#475569">${d.theme}</span>
+          </div>
+          ${d.items.map(item => `
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;color:#334155">
+              <span style="color:#22c55e;font-size:12px">●</span> ${item}
+            </div>`).join('')}
+        </div>`).join('')}
+      <div style="display:flex;gap:8px">
+        <button class="a2ui-btn a2ui-btn-primary" style="flex:1"
+          onclick="window.open('https://www.makemytrip.com/flights/?tripType=O&itinerary=BLR-GOI','_blank')">
+          ✈️ Book Flights
+        </button>
+        <button class="a2ui-btn a2ui-btn-secondary" style="flex:1"
+          onclick="window.open('https://www.makemytrip.com/hotels/goa-hotels.html','_blank')">
+          🏨 Find Hotels
+        </button>
+      </div>
+    </div>`;
+  return surface;
+}
+
+// ── RECIPE TEMPLATE (dynamic — uses actual dish from query) ────
+function buildRecipeTemplate(query) {
+  const q = query.toLowerCase();
+
+  // Extract dish name from query
+  const dishMatch = query.match(/(?:recipe\s+(?:for|of)|make|cook(?:ing)?|how\s+to\s+(?:make|cook))\s+(.+?)(?:\s+recipe|\?|$)/i)
+                 || query.match(/(.+?)\s+recipe/i);
+  const rawDish = dishMatch ? dishMatch[1].trim() : query.replace(/recipe|cook|ingredients|steps|for|how to make/gi,'').trim();
+  const dish = rawDish || 'Dish';
+
+  // Build generic recipe scaffold based on dish keywords
+  const isBiryani  = /biryani/.test(q);
+  const isPasta    = /pasta|spaghetti|noodle/.test(q);
+  const isCake     = /cake|brownie|cookie|cupcake/.test(q);
+  const isSoup     = /soup|stew|curry/.test(q);
+  const isSandwich = /sandwich|burger|wrap/.test(q);
+
+  let ingredients, steps, emoji, time, servings;
+
+  if (isBiryani) {
+    emoji = '🍛'; time = '60 min'; servings = 4;
+    ingredients = [
+      '2 cups Basmati Rice','500g Chicken (bone-in)','2 Onions (sliced)','1 cup Yogurt',
+      '2 tbsp Biryani Masala','1 tsp Turmeric','4 tbsp Oil / Ghee','Whole spices (bay leaf, cloves, cardamom)',
+      'Fresh mint & coriander','Salt to taste'
+    ];
+    steps = [
+      {title:'Marinate chicken', detail:'Mix chicken with yogurt, biryani masala, turmeric and salt. Rest 30 min.'},
+      {title:'Fry onions', detail:'Fry sliced onions in oil until golden brown. Remove half for garnish.'},
+      {title:'Cook chicken', detail:'Add whole spices to oil, then add marinated chicken. Cook 15–20 min.'},
+      {title:'Par-boil rice', detail:'Boil rice with salt and whole spices until 70% done. Drain.'},
+      {title:'Layer & dum', detail:'Layer rice over chicken, top with fried onions, mint. Cover tight and cook on low heat 20 min.'},
+    ];
+  } else if (isPasta) {
+    emoji = '🍝'; time = '25 min'; servings = 2;
+    ingredients = [
+      '200g Pasta (penne/spaghetti)','2 cloves Garlic','1 can Tomatoes (400g)','1 tsp Olive Oil',
+      '1 tsp Oregano','Salt & Pepper','Parmesan to serve','Fresh basil (optional)'
+    ];
+    steps = [
+      {title:'Boil pasta', detail:'Cook pasta in salted boiling water as per packet (al dente). Reserve ½ cup pasta water.'},
+      {title:'Make sauce', detail:'Sauté garlic in olive oil 1 min, add tomatoes, oregano, salt. Simmer 10 min.'},
+      {title:'Combine', detail:'Add drained pasta to sauce, toss with splash of pasta water. Cook 1 min.'},
+      {title:'Serve', detail:'Plate and top with parmesan and basil.'},
+    ];
+  } else if (isCake) {
+    emoji = '🎂'; time = '50 min'; servings = 8;
+    ingredients = [
+      '2 cups All-purpose Flour','1½ cups Sugar','½ cup Butter (softened)','2 Eggs',
+      '1 cup Milk','2 tsp Baking Powder','1 tsp Vanilla Extract','Pinch of Salt'
+    ];
+    steps = [
+      {title:'Preheat oven', detail:'Set oven to 175°C / 350°F. Grease a 9-inch round pan.'},
+      {title:'Cream butter & sugar', detail:'Beat butter and sugar until light and fluffy (~3 min).'},
+      {title:'Add wet ingredients', detail:'Beat in eggs one at a time, then vanilla and milk.'},
+      {title:'Fold in dry', detail:'Sift in flour, baking powder, salt. Fold gently until just combined.'},
+      {title:'Bake', detail:'Pour into pan and bake 30–35 min until toothpick comes out clean.'},
+    ];
+  } else {
+    // Generic fallback scaffold
+    emoji = '🍳'; time = '30 min'; servings = 2;
+    ingredients = [
+      'Main ingredient (as needed)','Onion – 1 medium','Garlic – 2 cloves','Oil – 2 tbsp',
+      'Salt & Pepper to taste','Spices of choice','Fresh herbs for garnish'
+    ];
+    steps = [
+      {title:'Prep', detail:'Wash, chop and prepare all ingredients.'},
+      {title:'Cook base', detail:'Heat oil, add onions and garlic. Sauté until soft.'},
+      {title:'Add main ingredient', detail:'Add your main ingredient and cook through.'},
+      {title:'Season & finish', detail:'Adjust seasoning, garnish and serve hot.'},
+    ];
+  }
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h1 class="a2ui-text-h1">${emoji} ${dish.replace(/\b\w/g,c=>c.toUpperCase())}</h1>
+          <p class="a2ui-text-caption">${time} · ${servings} servings · Step-by-step recipe</p>
+        </div>
+        <span class="a2ui-badge a2ui-badge-success">Recipe</span>
+      </div>
+      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:12px;padding:16px">
+        <div style="font-weight:700;font-size:13px;color:#92400e;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">🧂 Ingredients</div>
+        ${ingredients.map(i=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:#451a03">
+            <span style="color:#d97706;font-size:11px">●</span> ${i}
+          </div>`).join('')}
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px">
+        <div style="font-weight:700;font-size:13px;color:#166534;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">👨‍🍳 Steps</div>
+        ${steps.map((s,i)=>`
+          <div style="display:flex;gap:12px;padding:8px 0;border-bottom:${i<steps.length-1?'1px solid #dcfce7':'none'}">
+            <div style="min-width:26px;height:26px;border-radius:50%;background:#22c55e;color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
+            <div>
+              <div style="font-weight:700;font-size:13px;color:#1e293b">${s.title}</div>
+              <div style="font-size:12px;color:#475569;margin-top:2px">${s.detail}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="a2ui-btn a2ui-btn-primary" style="flex:1"
+          onclick="window.open('https://www.youtube.com/results?search_query=${encodeURIComponent(dish+' recipe')}','_blank')">
+          ▶ Watch Video
+        </button>
+        <button class="a2ui-btn a2ui-btn-secondary"
+          onclick="window.open('https://www.bigbasket.com/ps/?q=${encodeURIComponent(dish)}','_blank')">
+          🛒 Buy Ingredients
+        </button>
+      </div>
+    </div>`;
+  return surface;
+}
+
+// ── RECOMMENDATION TEMPLATE (cameras, laptops, gadgets, etc.) ──
+function buildRecommendationTemplate(query) {
+  const q = query.toLowerCase();
+
+  // Determine product type from query
+  const isCamera    = /camera|mirrorless|dslr|lens|ibis|photography/.test(q);
+  const isLaptop    = /laptop|notebook|macbook|chromebook/.test(q);
+  const isPhone     = /phone|smartphone|mobile|iphone|android/.test(q);
+  const isHeadphone = /headphone|earphone|earbuds|airpods|tws/.test(q);
+  const isTV        = /\btv\b|television|oled|qled/.test(q);
+
+  let emoji, title, subtitle, items, tableRows;
+
+  if (isCamera) {
+    emoji = '📷'; title = 'Travel Mirrorless Cameras';
+    subtitle = 'Top 3 picks under $1,500 with IBIS & lightweight body';
+    items = [
+      { name:'Fujifilm X-S20',   badge:'Best Color',    badgeType:'info',    price:'~$1,299', weight:'491g', year:'2023', desc:'Exceptional color science, 7-stop IBIS, best battery life in class. Great for travel + vlogging.' },
+      { name:'Sony a6700',       badge:'Best Autofocus', badgeType:'success', price:'~$1,398', weight:'493g', year:'2023', desc:'AI-powered subject tracking, sharpest autofocus, huge Sony E-mount lens ecosystem.' },
+      { name:'OM System OM-5',   badge:'Most Compact',  badgeType:'warn',    price:'~$1,199', weight:'414g', year:'2022', desc:'Lightest option, IP53 weather sealing, 7.5-stop IBIS. Perfect for outdoor/adventure travel.' },
+    ];
+    tableRows = [
+      {label:'Sensor',  vals:['APS-C 26MP','APS-C 26MP','M4/3 20MP']},
+      {label:'IBIS',    vals:['7.0 stops','5.0 stops','7.5 stops']},
+      {label:'Weight',  vals:['491g','493g','414g']},
+      {label:'Price',   vals:['$1,299','$1,398','$1,199']},
+    ];
+  } else if (isLaptop) {
+    emoji = '💻'; title = 'Laptops Recommendation';
+    subtitle = 'Top 3 picks for your budget';
+    items = [
+      { name:'MacBook Air M2',      badge:'Best Overall',     badgeType:'info',    price:'₹1,14,900', weight:'1.24kg', year:'2022', desc:'Fanless, all-day battery, stunning display. Best for students & professionals on macOS.' },
+      { name:'Dell XPS 13',         badge:'Best Windows',     badgeType:'success', price:'₹89,990',   weight:'1.17kg', year:'2023', desc:'Compact premium build, Intel Core i7, excellent display. Great for portability.' },
+      { name:'ASUS VivoBook 15',     badge:'Best Value',       badgeType:'warn',    price:'₹54,990',   weight:'1.5kg',  year:'2023', desc:'AMD Ryzen 5, 16GB RAM, Full HD OLED. Unbeatable specs for the price.' },
+    ];
+    tableRows = [
+      {label:'CPU',     vals:['Apple M2','Intel i7-1360P','Ryzen 5 7530U']},
+      {label:'RAM',     vals:['8/16 GB','16 GB','16 GB']},
+      {label:'Battery', vals:['18 hrs','12 hrs','8 hrs']},
+      {label:'Price',   vals:['₹1,14,900','₹89,990','₹54,990']},
+    ];
+  } else {
+    // Generic recommendation scaffold
+    emoji = '⭐'; title = 'Top Recommendations';
+    subtitle = 'Best picks based on your requirements';
+    items = [
+      { name:'Option 1', badge:'Top Pick',   badgeType:'info',    price:'—', weight:'—', year:'2023', desc:'Best overall choice for most users.' },
+      { name:'Option 2', badge:'Best Value', badgeType:'success', price:'—', weight:'—', year:'2022', desc:'Great balance of price and performance.' },
+      { name:'Option 3', badge:'Premium',    badgeType:'warn',    price:'—', weight:'—', year:'2023', desc:'For users who want the absolute best.' },
+    ];
+    tableRows = [];
+  }
+
+  const badgeColor = {
+    info:    {bg:'#dbeafe',color:'#1e40af'},
+    success: {bg:'#dcfce7',color:'#166534'},
+    warn:    {bg:'#fef9c3',color:'#854d0e'},
+  };
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.innerHTML = `
+    <div class="a2ui-col">
+      <div>
+        <h1 class="a2ui-text-h1">${emoji} ${title}</h1>
+        <p class="a2ui-text-caption">${subtitle}</p>
+      </div>
+
+      ${items.map((item, i) => {
+        const bc = badgeColor[item.badgeType] || badgeColor.info;
+        return `
+        <div style="border:1px solid #e2e8f0;border-radius:14px;padding:16px;background:#f8fafc">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:800;font-size:16px;color:#0f172a">
+                ${i+1}. ${item.name}
+              </div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px">${item.year} · ${item.weight}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+              <span style="background:${bc.bg};color:${bc.color};font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.3px">${item.badge}</span>
+              <span style="font-size:15px;font-weight:800;color:#2563eb">${item.price}</span>
+            </div>
+          </div>
+          <p style="font-size:13px;color:#475569;line-height:1.6">${item.desc}</p>
+        </div>`;
+      }).join('')}
+
+      ${tableRows.length ? `
+      <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;background:#f1f5f9">
+          <div style="padding:10px 12px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Feature</div>
+          ${items.map(it=>`<div style="padding:10px 12px;font-size:12px;font-weight:700;color:#1e293b">${it.name.split(' ').slice(-2).join(' ')}</div>`).join('')}
+        </div>
+        ${tableRows.map(row=>`
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-top:1px solid #f1f5f9">
+          <div style="padding:9px 12px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase">${row.label}</div>
+          ${row.vals.map(v=>`<div style="padding:9px 12px;font-size:12px;color:#334155">${v}</div>`).join('')}
+        </div>`).join('')}
+      </div>` : ''}
+
+      <div style="display:flex;gap:8px">
+        <button class="a2ui-btn a2ui-btn-primary" style="flex:1"
+          onclick="window.open('https://www.amazon.in/s?k=${encodeURIComponent(title)}','_blank')">
+          🛒 Shop on Amazon
+        </button>
+        <button class="a2ui-btn a2ui-btn-secondary" style="flex:1"
+          onclick="window.open('https://www.rtings.com','_blank')">
+          📊 Full Reviews
+        </button>
+      </div>
+    </div>`;
+  return surface;
+}
+
+// ── ROUTE QUERY TO TEMPLATE ────────────────────────────────────
+async function buildClientTemplate(query) {
+  const cat = detectCategory(query);
+  if (cat === 'weather')        return await buildWeatherTemplate(query);
+  if (cat === 'order')          return buildOrderTemplate(query);
+  if (cat === 'cab')            return buildCabTemplate(query);
+  if (cat === 'compare')        return buildCompareTemplate(query);
+  if (cat === 'recipe')         return buildRecipeTemplate(query);
+  if (cat === 'todo')           return buildTodoTemplate(query);
+  if (cat === 'travel')         return buildTravelTemplate(query);
+  if (cat === 'recommendation') return buildRecommendationTemplate(query);
+  return null;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── FIX 1: FULL BUTTON ACTION HANDLER in A2UI RENDERER ─────────
+// ════════════════════════════════════════════════════════════════
+
+function renderA2UI(a2uiJson) {
+  let primaryColor = '#2563eb';
+  try { primaryColor = a2uiJson[0].createSurface.theme.primaryColor; } catch(e) {}
+
+  const compsArr = a2uiJson[1]?.updateComponents?.components || [];
+  const compMap  = {};
+  compsArr.forEach(c => compMap[c.id] = c);
+
+  let styleEl = document.getElementById('a2ui-theme');
+  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id='a2ui-theme'; document.head.appendChild(styleEl); }
+  styleEl.textContent = `.a2ui-btn-primary{background:${primaryColor}!important}.a2ui-input:focus{border-color:${primaryColor}!important}`;
+
+  // ── FIX 1: Action dispatcher ───────────────────────────────
+  function dispatchAction(action) {
+    if (!action) return;
+    const fn = action.functionCall;
+    if (!fn) return;
+    const call = fn.call || fn.name || '';
+    const args = fn.args || fn.arguments || {};
+
+    switch(call) {
+      case 'openUrl':
+      case 'navigate':
+        if (args.url) window.open(args.url, '_blank');
+        break;
+      case 'bookCab':
+        alert(`✅ Cab booked!\nFrom: ${args.from || 'Pickup'}\nTo: ${args.to || 'Destination'}\nType: ${args.type || 'Mini'}`);
+        break;
+      case 'submitForm':
+      case 'submit':
+        alert('✅ Form submitted successfully!');
+        break;
+      case 'showAlert':
+      case 'alert':
+        alert(args.message || args.text || 'Action triggered');
+        break;
+      case 'addToCart':
+        alert(`🛒 Added to cart: ${args.product || args.item || 'Item'}`);
+        break;
+      case 'call':
+        if (args.phone) window.open('tel:' + args.phone);
+        break;
+      case 'share':
+        if (navigator.share) { navigator.share({ title: args.title || '', text: args.text || '', url: args.url || window.location.href }); }
+        else { alert('Share: ' + (args.text || args.url || '')); }
+        break;
+      default:
+        // Generic fallback — show what was triggered
+        console.log('A2UI action:', call, args);
+        if (args.url) window.open(args.url, '_blank');
+        else alert(`Action: ${call}`);
+    }
+  }
+
+  function renderComp(id) {
+    const c = compMap[id];
+    if (!c) return document.createTextNode('');
+    const type = c.component || 'Text';
+
+    switch (type) {
+      case 'Column': {
+        const el = document.createElement('div');
+        el.className = 'a2ui-col';
+        (c.children || []).forEach(cid => el.appendChild(renderComp(cid)));
+        return el;
+      }
+      case 'Row': {
+        const el = document.createElement('div');
+        el.className = 'a2ui-row';
+        (c.children || []).forEach(cid => el.appendChild(renderComp(cid)));
+        return el;
+      }
+      case 'Card': {
+        const el = document.createElement('div');
+        el.className = 'a2ui-card';
+        if (c.child) el.appendChild(renderComp(c.child));
+        (c.children || []).forEach(cid => el.appendChild(renderComp(cid)));
+        return el;
+      }
+      case 'Text': {
+        const v = c.variant || 'body';
+        const tag = v==='h1'?'h1':v==='h2'?'h2':v==='h3'?'h3':'p';
+        const el = document.createElement(tag);
+        el.className = `a2ui-text-${v}`;
+        el.textContent = c.text || '';
+        return el;
+      }
+      case 'Button': {
+        const el = document.createElement('button');
+        el.className = `a2ui-btn a2ui-btn-${c.variant || 'primary'}`;
+        if (c.child) el.appendChild(renderComp(c.child));
+        else el.textContent = c.label || c.text || 'Button';
+        // FIX: always wire up action handler
+        el.onclick = () => dispatchAction(c.action);
+        return el;
+      }
+      case 'TextField': {
+        const wrap = document.createElement('div');
+        wrap.className = 'a2ui-input-wrap';
+        if (c.label) {
+          const lbl = document.createElement('label');
+          lbl.className = 'a2ui-input-label';
+          lbl.textContent = c.label;
+          wrap.appendChild(lbl);
+        }
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.className = 'a2ui-input';
+        inp.placeholder = c.placeholder || c.label || '';
+        if (c.value?.default) inp.value = c.value.default;
+        wrap.appendChild(inp);
+        return wrap;
+      }
+      case 'CheckBox': {
+        const wrap = document.createElement('label');
+        wrap.className = 'a2ui-checkbox';
+        const inp = document.createElement('input');
+        inp.type = 'checkbox'; inp.checked = !!(c.value?.default);
+        wrap.appendChild(inp);
+        const span = document.createElement('span');
+        span.textContent = c.label || '';
+        wrap.appendChild(span);
+        return wrap;
+      }
+      case 'Divider': {
+        const el = document.createElement('hr');
+        el.className = 'a2ui-divider';
+        return el;
+      }
+      case 'List': {
+        const el = document.createElement('div');
+        el.className = 'a2ui-list';
+        (c.children || []).forEach(cid => {
+          const item = document.createElement('div');
+          item.className = 'a2ui-list-item';
+          item.appendChild(renderComp(cid));
+          el.appendChild(item);
+        });
+        return el;
+      }
+      case 'Image': {
+        if (c.url) {
+          const img = document.createElement('img');
+          img.src = c.url; img.className = 'a2ui-image'; img.alt = c.alt || '';
+          img.onerror = () => { img.style.display='none'; };
+          return img;
+        }
+        const ph = document.createElement('div');
+        ph.className = 'a2ui-image';
+        ph.textContent = '🖼 ' + (c.alt || 'Image');
+        return ph;
+      }
+      default: {
+        const el = document.createElement('div');
+        el.className = 'a2ui-text-body';
+        el.style.cssText = 'padding:8px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#64748b;';
+        el.textContent = `[${type}] ${c.text || c.label || c.description || ''}`;
+        return el;
+      }
+    }
+  }
+
+  const surface = document.createElement('div');
+  surface.className = 'a2ui-surface';
+  surface.appendChild(renderComp('root'));
+  return surface;
+}
+
+// ── SHOW RESULT ───────────────────────────────────────────────────
+function showRenderedUI(domElement, latency, source) {
+  const canvas = document.getElementById('a2ui-canvas');
+  const empty  = document.getElementById('empty-state');
+  canvas.innerHTML = '';
+  canvas.appendChild(domElement);
+  canvas.style.display = 'block';
+  canvas.classList.add('fade-in');
+  empty.style.display = 'none';
+
+  const badge = document.getElementById('latency-badge');
+  badge.textContent = `⚡ ${latency}s`;
+  badge.classList.add('show');
+
+  setStatus('success', `Generated via ${source} in ${latency}s`);
+  document.querySelector('.tab-btn').click();
+  setLoading(false);
+}
+
+function showResult(parsed, latency) {
+  const a2ui = parsed?.a2ui_json;
+  document.getElementById('json-out').innerHTML = highlightJSON(JSON.stringify(parsed, null, 2));
+
+  if (!a2ui || !Array.isArray(a2ui) || a2ui.length < 2) {
+    setStatus('error', parsed?.error || 'Invalid A2UI structure — check JSON tab');
+    setLoading(false);
+    return;
+  }
+
+  lastA2UI = a2ui;
+
+  const canvas = document.getElementById('a2ui-canvas');
+  const empty  = document.getElementById('empty-state');
+  canvas.innerHTML = '';
+
+  try {
+    canvas.appendChild(renderA2UI(a2ui));
+    canvas.style.display = 'block';
+    canvas.classList.add('fade-in');
+    empty.style.display = 'none';
+  } catch(renderErr) {
+    canvas.innerHTML = `<div style="padding:20px;font-family:sans-serif;color:#dc2626;background:#fef2f2;border-radius:12px;">
+      <strong>Render error:</strong> ${renderErr.message}<br>
+      <small>JSON is valid — check JSON tab</small></div>`;
+    canvas.style.display = 'block';
+    empty.style.display = 'none';
+  }
+
+  const src = parsed?.source === 'template_fallback' ? 'template' : 'model';
+  showRenderedUI(canvas.firstChild || canvas, latency, src);
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── MAIN GENERATE — with client template fallback ───────────────
+// ════════════════════════════════════════════════════════════════
+async function generate() {
+  const query = document.getElementById('query').value.trim();
+  if (!query) { setStatus('error', 'Please enter a query first'); return; }
+  if (isLoading) return;
+
+  setLoading(true, 'Detecting category…');
+  clearStatus();
+
+  const msgs = ['Sending to model…','Running inference…','Parsing A2UI JSON…','Almost done…'];
+  let mi = 0;
+  const ticker = setInterval(() => {
+    mi = (mi + 1) % msgs.length;
+    document.getElementById('loading-text').textContent = msgs[mi];
+  }, 3000);
+
+  const t0 = Date.now();
+
+  // ── Step 1: Try model API if ngrok URL is set ─────────────────
+  if (NGROK_URL) {
+    try {
+      const res = await fetch(`${NGROK_URL}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, response: "" })
+      });
+
+      clearInterval(ticker);
+
+      if (res.ok) {
+        const parsed = await res.json();
+        const latency = ((Date.now() - t0) / 1000).toFixed(1);
+
+        // Check if model gave a useful response (not generic fallback)
+        const isGenericFallback = checkIfGenericFallback(parsed);
+        if (!isGenericFallback) {
+          showResult(parsed, latency);
+          return;
+        }
+        // Fall through to client template if generic fallback detected
+        document.getElementById('json-out').innerHTML = highlightJSON(JSON.stringify(parsed, null, 2));
+        console.log('Model gave generic fallback — using client template instead');
+      }
+    } catch(err) {
+      clearInterval(ticker);
+      console.warn('Model API error:', err.message, '— trying client template');
+    }
+  } else {
+    clearInterval(ticker);
+    showUrlPrompt();
+  }
+
+  // ── Step 2: Client-side rich template ────────────────────────
+  setLoading(true, 'Building template…');
+  const latency = ((Date.now() - t0) / 1000).toFixed(1);
+
+  try {
+    const templateEl = await buildClientTemplate(query);
+    if (templateEl) {
+      const canvas = document.getElementById('a2ui-canvas');
+      const empty  = document.getElementById('empty-state');
+      canvas.innerHTML = '';
+      canvas.appendChild(templateEl);
+      canvas.style.display = 'block';
+      canvas.classList.add('fade-in');
+      empty.style.display = 'none';
+      const badge = document.getElementById('latency-badge');
+      badge.textContent = `⚡ ${latency}s`;
+      badge.classList.add('show');
+      setStatus('success', `Generated via client template in ${latency}s`);
+      document.querySelector('.tab-btn').click();
+      setLoading(false);
+      return;
+    }
+  } catch(e) {
+    console.warn('Template error:', e);
+  }
+
+  // ── Step 3: Fallback — no template, no model ──────────────────
+  setLoading(false);
+  if (!NGROK_URL) {
+    setStatus('error', 'Set your ngrok URL first (see above)');
+  } else {
+    setStatus('error', 'No template found for this query. Try the model with ngrok URL set.');
+  }
+}
+window.generate = generate;
+
+// Detect if model returned the generic "Key information displayed here" fallback
+function checkIfGenericFallback(parsed) {
+  const json = JSON.stringify(parsed || {});
+  return json.includes('Key information displayed here') ||
+         json.includes('Detailed results and options available') ||
+         (parsed?.source === 'template_fallback' && json.includes('Learn More'));
+}
+
+// ── KEYBOARD SHORTCUT ─────────────────────────────────────────────
+document.getElementById('query').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
+});
+
+// ── INIT ──────────────────────────────────────────────────────────
+updateChar();
+</script>
+</body>
+</html>

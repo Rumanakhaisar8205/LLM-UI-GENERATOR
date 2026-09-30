@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+*.env
+kaggle.json
+access_token
+
+# Hugging Face / API caches
+.cache/
+huggingface/
+hf_cache/
+
+# Model files - DO NOT PUT LARGE MODELS IN GITHUB
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# Training checkpoints
+checkpoint-*/
+runs/
+wandb/
+
+# Generated data
+data/queries/
+data/responses/
+data/a2ui_json/
+data/html/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+data.zip
